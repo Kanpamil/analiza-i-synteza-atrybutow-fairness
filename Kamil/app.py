@@ -5,9 +5,6 @@ from data_preprocessor import load_csv_from_path, load_csv_from_bytes, split_and
 from classificator_runner import run_classifier_experiment, run_classifier_experiment_with_cv, load_and_display_experiment
 from experiment_loader import show_experiment_loader, get_classifier_params_from_session
 from ui_helpers import display_traditional_results, display_cv_results
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.svm import SVC
-from sklearn.neighbors import KNeighborsClassifier
 
 st.set_page_config(page_title="Classifier Selector + Runner", layout="wide")
 st.title("Classifier Selector — z trenowaniem i zapisem eksperymentów")
