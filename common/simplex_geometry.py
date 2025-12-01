@@ -56,7 +56,7 @@ def generate_simplex_grid(n, N_res):
                     coords.append(f_point(w, vertices))
                     weights_list.append(w)
 
-    return np.array(coords), np.array(weights_list).T
+    return np.array(coords), np.array(weights_list)
 
 def get_barycentric_for_slice(x, y, z):
     """
