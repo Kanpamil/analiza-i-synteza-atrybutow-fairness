@@ -9,13 +9,14 @@ def metric(func):
     return property(func)
 
 class Report:
-    @property
-    def available_metrics(self):
-        metrics = []
-        for name, value in type(self).__dict__.items():
-            if isinstance(value, property) and hasattr(value.fget, '_is_metric'):
-                metrics.append(name)
-        return sorted(metrics)
+    @classmethod
+    def available_metrics(cls):
+        metric_names = []
+        for base in cls.mro():
+            for name, value in base.__dict__.items():
+                if isinstance(value, property) and hasattr(value.fget, '_is_metric'):
+                    metric_names.append(name)
+        return sorted(metric_names)
 
     def calculate(self, metric_name):
         return getattr(self, metric_name)
