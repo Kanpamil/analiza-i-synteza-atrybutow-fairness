@@ -39,7 +39,7 @@ class ClassReport(Report):
 
     accuracy = metric(lambda self: safe_div(self.tp + self.tn, self.total))
     balanced_accuracy = metric(lambda self: (self.tpr + self.tnr) / 2)
-    f1_score = metric(lambda self: safe_div(2 * self.tp, 2 * self.tp + self.fp + self.fn))
+    f1_score = metric(lambda self: safe_div(2 * self.precision * self.recall, self.precision + self.recall))
     fnr = metric(lambda self: safe_div(self.fn, self.p))
     fpr = metric(lambda self: safe_div(self.fp, self.n))
     g_mean = metric(lambda self: np.sqrt(self.recall * self.specificity))
