@@ -21,11 +21,9 @@ labels = ["TP_p", "FN_p", "TP_u", "FN_u"]
 # -------------------------------------------------
 base_cmap = plt.cm.jet
 
-# 1. Mapa dla 2D (imshow)
 cmap_2d = base_cmap.copy()
 cmap_2d.set_bad(color='white')
 
-# 2. Mapa dla 3D (scatter)
 cmap_3d = base_cmap.copy()
 
 # -------------------------------------------------
@@ -39,16 +37,25 @@ def calculate_metric(tpp, fnp, tpu, fnu, mode):
     tpr_unprot = np.divide(tpu, p_unprot, out=np.full_like(tpu, np.nan), where=p_unprot!=0)
 
     if mode == 'Eq. Opp. (Diff)':
+        # Kierunek: Im wyżej, tym lepiej dla Prot
         return tpr_prot - tpr_unprot
 
     elif mode == 'Eq. Opp. (Ratio)':
-        # Ratio: TPR_p / TPR_u
+        # Kierunek: Im wyżej, tym lepiej dla Prot (licznik to Prot)
         return np.divide(tpr_prot, tpr_unprot, out=np.full_like(tpr_prot, np.nan), where=tpr_unprot!=0)
 
     elif mode == 'Global Recall':
         tp_total = tpp + tpu
         p_total = p_prot + p_unprot
         return np.divide(tp_total, p_total, out=np.full_like(tp_total, np.nan), where=p_total!=0)
+        
+    elif mode == 'Eq. Opp. (Norm)':
+        # ZMIANA: Uspójnienie kierunku z Ratio i Diff.
+        # Wzór: TPR_p / (TPR_p + TPR_u)
+        # 0.5 = Równowaga
+        # > 0.5 = Przewaga Prot (zgodnie z Diff > 0 i Ratio > 1)
+        denom = tpr_prot + tpr_unprot
+        return np.divide(tpr_prot, denom, out=np.full_like(tpr_prot, np.nan), where=denom!=0)
 
     else:
         return np.zeros_like(tpp)
@@ -84,6 +91,9 @@ def generate_point_cloud(N):
 # -------------------------------------------------
 current_N = 12
 pts_3d_coords, bary_weights_array = generate_point_cloud(current_N)
+surf_plot = None
+contours = None
+contour_labels = []
 
 # -------------------------------------------------
 #  Konfiguracja Okna
@@ -91,7 +101,6 @@ pts_3d_coords, bary_weights_array = generate_point_cloud(current_N)
 fig = plt.figure(figsize=(14, 9))
 plt.subplots_adjust(bottom=0.25, wspace=0.25, left=0.05, right=0.95)
 
-# --- PANEL 3D ---
 ax3d = fig.add_subplot(121, projection='3d')
 ax3d.set_title("Widok 3D (Przestrzeń Pozytywów)", fontsize=12)
 ax3d.set_axis_off()
@@ -106,7 +115,6 @@ sc_nan = ax3d.scatter([], [], [], s=15, c='magenta')
 for v, label in zip(vertices, labels):
     ax3d.text(v[0], v[1], v[2]+0.05, label, fontsize=11, weight='bold')
 
-# --- PANEL 2D ---
 ax2d = fig.add_subplot(122)
 ax2d.set_title("Przekrój 2D", fontsize=12)
 
@@ -115,79 +123,74 @@ u = np.linspace(0, 1, N_2d)
 v = np.linspace(0, 1, N_2d)
 U, V = np.meshgrid(u, v)
 
-# Inicjalizacja imshow
 img = ax2d.imshow(np.ma.zeros((N_2d, N_2d)), origin='lower', extent=[0,1,0,1], cmap=cmap_2d)
 cbar = fig.colorbar(img, ax=ax2d, shrink=0.7)
 
 stats_text = ax2d.text(0.5, -0.15, "", transform=ax2d.transAxes, ha='center', va='top', fontsize=11, fontweight='bold', color='#333333')
 
-surf_plot = None
-
 # -------------------------------------------------
 #  Logika Aktualizacji
 # -------------------------------------------------
 def update(val=None):
-    global surf_plot, sc_valid, sc_nan
+    global surf_plot, sc_valid, sc_nan, contours, contour_labels
     
-    # 1. Widget values
     axis_mode = radio_axis.value_selected
     metric_mode = radio_metric.value_selected
     pos = slider_pos.val
     
-    # Logika Checkboxa Log Scale i Pola Tekstowego
     log_label = check_log.labels[0]
     
-    # Pobieramy potęgę z pola tekstowego (np. 1 -> 10^-1 do 10^1)
     try:
         log_exp = float(text_log.text)
     except ValueError:
-        log_exp = 1.0 # Domyślnie
+        log_exp = 2.0 
     
     if metric_mode == 'Eq. Opp. (Ratio)':
-        # Aktywacja
         log_label.set_color('black')
         text_log.label.set_color('black')
-        text_log.set_active(True) # Odblokowanie pola tekstowego
-        
+        text_log.set_active(True)
         use_log = check_log.get_status()[0]
     else:
-        # Dezaktywacja
         log_label.set_color('lightgray')
         text_log.label.set_color('lightgray')
-        # text_log.set_active(False) # Można zablokować, ale matplotlib < 3.3 nie ma set_active dla TextBox wprost, zostawiamy aktywne wizualnie wyszarzone
-        
-        # Wymuszenie wyłączenia log scale
         if check_log.get_status()[0]:
             check_log.set_active(0) 
             return
         use_log = False
 
-    # Checkbox "Transparent"
     is_transparent = check_transparency.get_status()[0]
     alpha_val = 0.15 if is_transparent else 1.0
 
-    # 2. Ustalanie Normalizacji
+    # 2. Ustalanie Normalizacji i Poziomów
     norm = None
+    levels = None
     
     if metric_mode == 'Eq. Opp. (Ratio)':
         if use_log:
-            # Skala Logarytmiczna: 10^-x do 10^x
             vmin_log = 10**(-log_exp)
             vmax_log = 10**(log_exp)
             norm = mcolors.LogNorm(vmin=vmin_log, vmax=vmax_log)
+            levels = np.logspace(-log_exp, log_exp, 15)
         else:
-            # Skala Liniowa
             norm = mcolors.Normalize(vmin=0.0, vmax=2.0)
+            levels = np.linspace(0.1, 1.9, 10)
             
     elif metric_mode == 'Eq. Opp. (Diff)':
         norm = mcolors.Normalize(vmin=-1.0, vmax=1.0)
+        levels = np.linspace(-0.9, 0.9, 10)
+        
+    elif metric_mode == 'Eq. Opp. (Norm)':
+        # Skala 0 do 1, idealnie 0.5
+        norm = mcolors.Normalize(vmin=0.0, vmax=1.0)
+        levels = np.linspace(0.1, 0.9, 9)
+        
     else: # Global Recall
         norm = mcolors.Normalize(vmin=0.0, vmax=1.0)
+        levels = np.linspace(0.1, 0.9, 9)
 
     # 3. Update 3D Scatter
     tpp, fnp, tpu, fnu = bary_weights_array
     vals = calculate_metric(tpp, fnp, tpu, fnu, metric_mode)
-    
     vals = np.nan_to_num(vals, nan=np.nan, posinf=np.nan, neginf=np.nan)
     
     mask_nan = np.isnan(vals)
@@ -233,7 +236,6 @@ def update(val=None):
     values = calculate_metric(tpp, fnp, tpu, fnu, metric_mode)
     values = np.nan_to_num(values, nan=np.nan, posinf=np.nan, neginf=np.nan)
     
-    # Statystyki
     valid_slice_values = values[mask_inside]
     if len(valid_slice_values) > 0 and np.any(~np.isnan(valid_slice_values)):
         mean_val = np.nanmean(valid_slice_values)
@@ -247,9 +249,25 @@ def update(val=None):
     img.set_data(values_masked)
     img.set_norm(norm) 
     
+    # --- RYSOWANIE IZOKWANT ---
+    if contours is not None:
+        for c in contours.collections:
+            c.remove()
+    for txt in contour_labels:
+        txt.remove()
+    contour_labels.clear()
+
+    if np.any(~values_masked.mask):
+        try:
+            contours = ax2d.contour(U, V, values_masked, levels=levels, 
+                                    colors='white', linewidths=1.5, alpha=0.9)
+            clbls = ax2d.clabel(contours, inline=True, fontsize=9, fmt='%1.1f', colors='white')
+            contour_labels.extend(clbls)
+        except:
+            contours = None
+
     ax2d.set_xlabel(xlabel, fontsize=10)
     ax2d.set_ylabel(ylabel, fontsize=10)
-    
     cbar.update_normal(img)
     
     # 5. Update 3D Plane
@@ -287,39 +305,31 @@ def update_roll(val):
 # -------------------------------------------------
 bg_color = '#f0f0f0'
 
-# Oś Cięcia
 ax_radio_axis = plt.axes([0.05, 0.02, 0.12, 0.18], facecolor=bg_color)
 radio_axis = RadioButtons(ax_radio_axis, ['Z (TPp-TPu)', 'Y (TPp-FNp)', 'X (TPp-FNu)'], active=0)
 ax_radio_axis.set_title("Oś Cięcia", fontsize=9)
 
-# Metryka
 ax_radio_metric = plt.axes([0.18, 0.02, 0.12, 0.18], facecolor=bg_color)
-radio_metric = RadioButtons(ax_radio_metric, ['Eq. Opp. (Diff)', 'Eq. Opp. (Ratio)', 'Global Recall'], active=0)
+radio_metric = RadioButtons(ax_radio_metric, ['Eq. Opp. (Diff)', 'Eq. Opp. (Ratio)', 'Global Recall', 'Eq. Opp. (Norm)'], active=0)
 ax_radio_metric.set_title("Metryka", fontsize=9)
 
-# Kontrolki (Checkboxy)
 ax_controls = plt.axes([0.31, 0.02, 0.16, 0.18], facecolor=bg_color)
 ax_controls.axis('off')
 
-# Checkbox: Transparent
 ax_check_trans = plt.axes([0.31, 0.13, 0.12, 0.05], frameon=False)
 check_transparency = CheckButtons(ax_check_trans, ['Transparent'], [True])
 
-# Checkbox: Log Scale (NOWY)
 ax_check_log = plt.axes([0.31, 0.08, 0.12, 0.05], frameon=False)
 check_log = CheckButtons(ax_check_log, ['Log Scale'], [False])
 
-# TextBox: Log Range (Power of 10) - Umieszczony obok checkboxa
 ax_text_log = plt.axes([0.43, 0.085, 0.04, 0.04])
-text_log = TextBox(ax_text_log, '', initial="2") # Pusty label, bo jest oczywiste obok log scale
+text_log = TextBox(ax_text_log, '', initial="2")
 text_log.label.set_size(9)
 
-# TextBox: Resolution
 ax_box = plt.axes([0.32, 0.03, 0.05, 0.04])
 text_box = TextBox(ax_box, 'Res: ', initial=str(current_N))
 text_box.label.set_size(9)
 
-# Slidery
 ax_slider_pos = plt.axes([0.50, 0.12, 0.43, 0.03])
 slider_pos = Slider(ax_slider_pos, 'Poz. Cięcia ', 0.0, 1.0, valinit=0.5, color='red')
 slider_pos.label.set_size(9)
@@ -335,7 +345,7 @@ slider_roll.on_changed(update_roll)
 check_transparency.on_clicked(update)
 check_log.on_clicked(update)
 text_box.on_submit(update_resolution)
-text_log.on_submit(update) # Update po wpisaniu potęgi
+text_log.on_submit(update)
 
 update()
 plt.show()

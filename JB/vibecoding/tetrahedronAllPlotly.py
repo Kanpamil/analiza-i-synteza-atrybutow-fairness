@@ -3,15 +3,24 @@ import numpy as np
 import plotly.graph_objects as go
 import itertools
 
+# --- NOWE IMPORTY (Wymagane do zapisu ZIP/PNG) ---
+import io
+import zipfile
+import matplotlib
+# Ustawienie backendu 'Agg' zapobiega błędom wątków w Streamlit
+matplotlib.use('Agg') 
+import matplotlib.pyplot as plt
+# -------------------------------------------------
+
 # Run with: streamlit run JB/vibecoding/tetrahedronAllPlotly.py
 
 # -------------------------------------------------
-#  Konfiguracja Strony
+#   Konfiguracja Strony
 # -------------------------------------------------
 st.set_page_config(layout="wide", page_title="Fairness Simplex Visualization")
 
 # -------------------------------------------------
-#  Logika Matematyczna (Numpy)
+#   Logika Matematyczna (Numpy)
 # -------------------------------------------------
 A = np.array([0.0, 0.0, 0.0])
 B = np.array([1.0, 0.0, 1.0])
@@ -108,7 +117,7 @@ def get_performance_metric(tp, fp, tn, fn, metric_name):
     return np.zeros_like(tp, dtype=float)
 
 # -------------------------------------------------
-#  Główny Kalkulator Metryk
+#   Główny Kalkulator Metryk
 # -------------------------------------------------
 def calculate_metric(inputs, mode):
     def get(k): return inputs[k]
@@ -170,7 +179,7 @@ def calculate_metric(inputs, mode):
     return np.zeros_like(get('TP_p'), dtype=float)
 
 # -------------------------------------------------
-#  Interfejs Streamlit
+#   Interfejs Streamlit
 # -------------------------------------------------
 
 with st.sidebar:
@@ -276,7 +285,7 @@ with st.sidebar:
     alpha_val = st.slider("Przeźroczystość punktów (Alpha)", 0.0, 1.0, 0.5, step=0.05)
 
 # -------------------------------------------------
-#  Główny Panel
+#   Główny Panel
 # -------------------------------------------------
 
 bary_coords, bary_weights = generate_simplex_grid(n_dim, res_3d)
@@ -465,13 +474,22 @@ if n_dim == 4:
     else:
         vals_2d_plot = vals_2d_masked
 
-    fig_2d = go.Figure(data=go.Heatmap(
+    fig_2d = go.Figure(data=go.Contour(
         z=vals_2d_plot,
         x=u_high,
         y=v_high,
         colorscale=colorscale,
         zmin=cmin,
         zmax=cmax,
+        connectgaps=False, # Ważne: nie rysuje linii poza trójkątem
+        contours=dict(
+            coloring='heatmap', # Zachowuje wypełnienie kolorami (gradient)
+            showlabels=True,    # Dodaje napisy na liniach (np. 0.5, 0.6)
+            labelfont=dict(
+                size=12,
+                color='white',
+            )
+        ),
         colorbar=dict(title=legend_title)
     ))
     
@@ -522,3 +540,99 @@ with col_2d:
         st.info("Wybierz dokładnie 4 zmienne, aby zobaczyć przekrój 2D.")
     else:
         st.empty()
+
+
+# --- SEKCJA GENEROWANIA ZIP z PNG (DODANA) ---
+
+with st.sidebar:
+    st.markdown("---")
+    st.header("📦 Eksport serii do ZIP")
+    
+    available_fixed = [k for k in VAR_KEYS if current_values[k] is not None]
+    
+    if n_dim == 4 and available_fixed:
+        selected_fixed = st.multiselect("Zmienne do iteracji (stałe)", available_fixed)
+        
+        if selected_fixed:
+            col_pdf1, col_pdf2, col_pdf3 = st.columns(3)
+            start_val = col_pdf1.number_input("Start", 0, 100, 0)
+            end_val = col_pdf2.number_input("Koniec", 0, 100, 60)
+            steps = col_pdf3.number_input("Kroki", 2, 10, 3)
+            
+            if st.button("Generuj serię wykresów PNG"):
+                val_range = np.linspace(start_val, end_val, steps)
+                combinations = list(itertools.product(val_range, repeat=len(selected_fixed)))
+                
+                # Bufor ZIP w pamięci
+                zip_buffer = io.BytesIO()
+                
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                    progress_bar = st.progress(0)
+                    
+                    for idx, combo in enumerate(combinations):
+                        local_inputs_2d = current_values.copy()
+                        title_parts = []
+                        filename_parts = []
+                        
+                        for i, var_name in enumerate(selected_fixed):
+                            local_inputs_2d[var_name] = combo[i]
+                            title_parts.append(f"{var_name}={int(combo[i])}")
+                            filename_parts.append(f"{var_name}_{int(combo[i])}")
+                        
+                        # Przeliczenie metryki dla aktualnej iteracji
+                        # Korzystamy ze zmiennych globalnych X_h, Y_h, Z_h zdefiniowanych w bloku n_dim == 4
+                        w1h, w2h, w3h, w4h = get_barycentric_for_slice(X_h, Y_h, Z_h)
+                        
+                        metric_inputs_iter = local_inputs_2d.copy()
+                        metric_inputs_iter[VAR_KEYS[selected_indices[0]]] = w1h * 100.0
+                        metric_inputs_iter[VAR_KEYS[selected_indices[1]]] = w2h * 100.0
+                        metric_inputs_iter[VAR_KEYS[selected_indices[2]]] = w3h * 100.0
+                        metric_inputs_iter[VAR_KEYS[selected_indices[3]]] = w4h * 100.0
+                        
+                        iter_vals = calculate_metric(metric_inputs_iter, metric_mode)
+                        if np.ndim(iter_vals) == 0:
+                            iter_vals = np.full((N_HEATMAP, N_HEATMAP), iter_vals)
+                        
+                        iter_vals_masked = np.where(mask_inside_h, iter_vals, np.nan)
+                        
+                        # Renderowanie PNG (Kwadratowe proporcje)
+                        fig_plt, ax = plt.subplots(figsize=(6, 6))
+                        
+                        # Ustawienie aspect ratio na 'equal' zapobiega rozciąganiu
+                        ax.set_aspect('equal', 'box')
+                        
+                        cmap_plt = 'jet'
+                        
+                        cp = ax.contourf(U_high, V_high, iter_vals_masked, levels=20, cmap=cmap_plt)
+                        cs = ax.contour(U_high, V_high, iter_vals_masked, levels=10, colors='white', linewidths=0.5)
+                        ax.clabel(cs, inline=True, fontsize=8, fmt='%1.1f')
+                        
+                        plt.colorbar(cp, ax=ax, label=metric_mode, fraction=0.046, pad=0.04)
+                        
+                        ax.set_title(f"Slice | " + ", ".join(title_parts))
+                        ax.set_xlabel(lbl_x)
+                        ax.set_ylabel(lbl_y)
+                        
+                        # Zapis do bufora obrazu PNG
+                        img_buffer = io.BytesIO()
+                        # bbox_inches='tight' usuwa zbędny biały margines
+                        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+                        plt.close(fig_plt)
+                        
+                        # Dodanie do ZIP
+                        file_name = f"plot_{'_'.join(filename_parts)}.png"
+                        zip_file.writestr(file_name, img_buffer.getvalue())
+                        
+                        progress_bar.progress((idx + 1) / len(combinations))
+                
+                zip_buffer.seek(0)
+                
+                st.success(f"Wygenerowano {len(combinations)} plików PNG w archiwum ZIP!")
+                st.download_button(
+                    label="Pobierz ZIP",
+                    data=zip_buffer,
+                    file_name="plots_series.zip",
+                    mime="application/zip"
+                )
+    else:
+        st.info("Eksport ZIP dostępny tylko przy 4 wybranych zmiennych.")
