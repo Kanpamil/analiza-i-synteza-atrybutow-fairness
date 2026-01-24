@@ -35,7 +35,9 @@ def barycentric_slicing():
 
     if len(index_to_value) == REQUIRED_COMPONENTS:
         sliced_sim_data = rounded_sim_data.slice_barycentric(index_to_value)
-        plot_simulation_3d(sliced_sim_data)
+
+        with st.container(horizontal_alignment='center'):
+            plot_simulation_3d(sliced_sim_data)
     else:
         missing = REQUIRED_COMPONENTS - len(index_to_value)
         st.info(f'Please select {missing} more component{'s' if missing > 1 else ''} to generate a visualization')

@@ -29,7 +29,9 @@ def cartesian_projection():
     if len(dimensions) == REQUIRED_DIMENSIONS:
         indices = [d - 1 for d in dimensions]
         projected_sim_data = sim_data.project_cartesian(indices, value_agg_func.lower())
-        plot_simulation_3d(projected_sim_data)
+
+        with st.container(horizontal_alignment='center'):
+            plot_simulation_3d(projected_sim_data)
     else:
         missing = REQUIRED_DIMENSIONS - len(dimensions)
         st.info(f'Please select {missing} more dimension{'s' if missing > 1 else ''} to generate a visualization')

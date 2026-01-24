@@ -9,4 +9,6 @@ def classification_metric():
     metric_name = to_metric_name(display_name)
 
     sim_data = SimulationData.from_metric_name(metric_name, st.session_state.resolution)
-    plot_simulation_3d(sim_data)
+
+    with st.container(horizontal_alignment='center'):
+        plot_simulation_3d(sim_data)

@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit_theme import st_theme
 import numpy as np
 import warnings
 import plotly.graph_objects as go
@@ -52,7 +53,7 @@ def _plot_simulation(sim_data,
         data.append(trace_func(
             **_create_coordinate_dict(wireframe),
             mode='lines',
-            line=dict(color='white', width=st.session_state.wireframe_width),
+            line=dict(color=_choose_wireframe_color(), width=st.session_state.wireframe_width),
             hoverinfo='none',
             showlegend=False
         ))
@@ -75,7 +76,7 @@ def _plot_simulation(sim_data,
         **layout_additional_dict
     )
 
-    st.plotly_chart(go.Figure(data, layout), height=st.session_state.chart_height)
+    st.plotly_chart(go.Figure(data, layout), width=st.session_state.chart_width, height=st.session_state.chart_height)
 
 def _create_coordinate_dict(array):
     coordinate_names = ['x', 'y', 'z']
@@ -102,3 +103,11 @@ def _choose_color_scale(sim_data):
     for lower_bound, upper_bound, color_scale in color_rules:
         if min_value >= lower_bound and max_value <= upper_bound:
             return color_scale
+
+def _choose_wireframe_color():
+    theme = st_theme()
+
+    if theme is not None and theme['base'] == 'light':
+        return 'black'
+
+    return 'white'

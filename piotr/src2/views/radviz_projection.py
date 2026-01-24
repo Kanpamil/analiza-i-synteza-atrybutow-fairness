@@ -20,4 +20,6 @@ def radviz_projection():
 
     indices = [component_names.index(name) for name in sorted_component_names]
     projected_sim_data = sim_data.project_radviz(indices, sidebar_value_agg_func().lower())
-    plot_simulation_2d(projected_sim_data)
+
+    with st.container(horizontal_alignment='center'):
+        plot_simulation_2d(projected_sim_data)

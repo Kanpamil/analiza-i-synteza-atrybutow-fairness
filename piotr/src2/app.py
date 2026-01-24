@@ -15,6 +15,7 @@ pg = st.navigation([
 )
 
 st.sidebar.header('Plot settings')
+st.session_state.chart_width = st.sidebar.slider('Chart width', min_value=600, max_value=2600, value=1600, step=100)
 st.session_state.chart_height = st.sidebar.slider('Chart height', min_value=400, max_value=1600, value=1000, step=100)
 st.session_state.resolution = st.sidebar.slider('Resolution', min_value=1, max_value=20, value=10, step=1)
 st.session_state.point_size = st.sidebar.slider('Point size', min_value=1, max_value=20, value=5, step=1)
