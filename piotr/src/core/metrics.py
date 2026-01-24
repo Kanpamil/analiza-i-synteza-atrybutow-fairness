@@ -1,42 +1,42 @@
 import numpy as np
 from dataclasses import dataclass
-from typing import Union
 
 def safe_div(n, d):
-    return np.divide(n, d, out=np.full_like(d, np.nan, dtype=float), where=d!=0)
+    return np.divide(n, d, out=np.full_like(d, np.nan, dtype=np.float64), where=d!=0)
 
 def metric(func):
     func._is_metric = True
     return property(func)
 
-class Report:
+class BaseMetrics:
     @classmethod
-    def available_metrics(cls):
-        metric_names = []
-        for base in cls.mro():
-            for name, value in base.__dict__.items():
-                if isinstance(value, property) and hasattr(value.fget, '_is_metric'):
-                    metric_names.append(name)
-        return sorted(metric_names)
+    def metric_names(cls):
+        return sorted(
+            name for name in dir(cls)
+            if isinstance(attr := getattr(cls, name), property) and getattr(attr.fget, '_is_metric', False)
+        )
 
     def calculate(self, metric_name):
         return getattr(self, metric_name)
 
-# https://en.wikipedia.org/wiki/Template:Diagnostic_testing_diagram
 @dataclass
-class ClassReport(Report):
-    tp: Union[int, float, np.ndarray]
-    fp: Union[int, float, np.ndarray]
-    tn: Union[int, float, np.ndarray]
-    fn: Union[int, float, np.ndarray]
+class ClassificationMetrics(BaseMetrics):
+    tp: np.ndarray
+    fp: np.ndarray
+    tn: np.ndarray
+    fn: np.ndarray
     p = property(lambda self: self.tp + self.fn)
     n = property(lambda self: self.fp + self.tn)
     p_pred = property(lambda self: self.tp + self.fp)
     n_pred = property(lambda self: self.tn + self.fn)
     total = property(lambda self: self.p + self.n)
 
+    @staticmethod
+    def component_names():
+        return np.array(['TP', 'FP', 'TN', 'FN'])
+
     def __add__(self, other):
-        return ClassReport(self.tp + other.tp, self.fp + other.fp, self.tn + other.tn, self.fn + other.fn)
+        return ClassificationMetrics(self.tp + other.tp, self.fp + other.fp, self.tn + other.tn, self.fn + other.fn)
 
     accuracy = metric(lambda self: safe_div(self.tp + self.tn, self.total))
     balanced_accuracy = metric(lambda self: (self.tpr + self.tnr) / 2)
@@ -52,10 +52,22 @@ class ClassReport(Report):
     tpr = metric(lambda self: safe_div(self.tp, self.p))
 
 @dataclass
-class FairReport(Report):
-    prot: ClassReport
-    unprot: ClassReport
+class FairnessMetrics(BaseMetrics):
+    tp_prot: np.ndarray
+    fp_prot: np.ndarray
+    tn_prot: np.ndarray
+    fn_prot: np.ndarray
+    tp_unprot: np.ndarray
+    fp_unprot: np.ndarray
+    tn_unprot: np.ndarray
+    fn_unprot: np.ndarray
+    prot = property(lambda self: ClassificationMetrics(self.tp_prot, self.fp_prot, self.tn_prot, self.fn_prot))
+    unprot = property(lambda self: ClassificationMetrics(self.tp_unprot, self.fp_unprot, self.tn_unprot, self.fn_unprot))
     total = property(lambda self: self.prot + self.unprot)
+
+    @staticmethod
+    def component_names():
+        return np.array(['TPp', 'FPp', 'TNp', 'FNp', 'TPup', 'FPup', 'TNup', 'FNup'])
 
     equal_opportunity_difference = metric(lambda self: self.prot.tpr - self.unprot.tpr)
     equal_opportunity_ratio = metric(lambda self: safe_div(self.prot.tpr, self.unprot.tpr))
