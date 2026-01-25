@@ -30,24 +30,50 @@ def _plot_simulation(sim_data,
     if layout_additional_dict is None:
         layout_additional_dict = {}
 
-    color_scale = _choose_color_scale(sim_data) if st.session_state.color_scale == 'auto' \
-                                                else st.session_state.color_scale
+    data = []
+    nan_mask = np.isnan(sim_data.point_values)
+    valid_mask = ~nan_mask
+    hovers = create_hovers(sim_data)
 
-    data = [trace_func(
-        **_create_coordinate_dict(sim_data.points_cartesian),
-        mode='markers',
-        marker=dict(
-            size=st.session_state.point_size,
-            opacity=st.session_state.point_opacity,
-            color=sim_data.point_values,
-            colorscale=color_scale,
-            showscale=True
-        ),
-        text=create_hovers(sim_data),
-        hoverinfo='text',
-        hoverlabel=dict(font=dict(size=st.session_state.font_size)),
-        showlegend=False
-    )]
+    if np.any(valid_mask):
+        if st.session_state.color_scale == 'auto':
+            cmin, cmax, color_scale = _choose_color_scale(sim_data)
+        else:
+            cmin, cmax, color_scale = -np.inf, np.inf, st.session_state.color_scale
+
+        data.append(trace_func(
+            **_create_coordinate_dict(sim_data.points_cartesian[valid_mask]),
+            mode='markers',
+            marker=dict(
+                size=st.session_state.point_size,
+                opacity=st.session_state.point_opacity,
+                color=sim_data.point_values[valid_mask],
+                cmin=cmin,
+                cmax=cmax,
+                colorscale=color_scale,
+                showscale=True
+            ),
+            text=hovers[valid_mask],
+            hoverinfo='text',
+            hoverlabel=dict(font=dict(size=st.session_state.font_size)),
+            showlegend=False
+        ))
+
+    if np.any(nan_mask):
+        data.append(trace_func(
+            **_create_coordinate_dict(sim_data.points_cartesian[nan_mask]),
+            mode='markers',
+            marker=dict(
+                size=st.session_state.point_size,
+                opacity=st.session_state.point_opacity,
+                color='magenta',
+                showscale=False
+            ),
+            text=hovers[nan_mask],
+            hoverinfo='text',
+            hoverlabel=dict(font=dict(size=st.session_state.font_size)),
+            showlegend=False
+        ))
 
     if wireframe is not None:
         data.append(trace_func(
@@ -73,6 +99,7 @@ def _plot_simulation(sim_data,
 
     layout = go.Layout(
         margin=dict(l=0, r=0, b=0, t=0),
+        uirevision='constant',
         **layout_additional_dict
     )
 
@@ -88,11 +115,9 @@ def _create_coordinate_dict(array):
 
 def _choose_color_scale(sim_data):
     color_rules = [
-        (0, 2, 'jet'),
-        (-2, 0, 'plasma'),
-        (-2, 2, 'viridis'),
-        (0, np.inf, 'solar'),
-        (-np.inf, np.inf, 'rdbu')
+        (-1.0, 1.0, 'jet'),
+        (0.0, np.inf, 'solar'),
+        (-np.inf, np.inf, 'viridis')
     ]
 
     with warnings.catch_warnings():
@@ -100,9 +125,12 @@ def _choose_color_scale(sim_data):
         min_value = np.nanmin(sim_data.point_values)
         max_value = np.nanmax(sim_data.point_values)
 
-    for lower_bound, upper_bound, color_scale in color_rules:
-        if min_value >= lower_bound and max_value <= upper_bound:
-            return color_scale
+    for cmin, cmax, color_scale in color_rules:
+        is_min_ok = min_value >= cmin or np.isclose(min_value, cmin)
+        is_max_ok = max_value <= cmax or np.isclose(max_value, cmax)
+
+        if is_min_ok and is_max_ok:
+            return cmin, cmax, color_scale
 
 def _choose_wireframe_color():
     theme = st_theme()

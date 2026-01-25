@@ -19,7 +19,7 @@ def barycentric_slicing():
     selected_component_names = st.sidebar.multiselect(
         'Components',
         component_names,
-        max_selections=4,
+        max_selections=REQUIRED_COMPONENTS,
         key=key,
         on_change=_sort_selected_component_names,
         args=(key, component_names)

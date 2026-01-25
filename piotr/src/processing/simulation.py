@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from core.metrics import ClassificationMetrics, FairnessMetrics
-from core.simplex import generate_vertices_cartesian, to_cartesian, generate_samples
+from core.simplex import generate_vertices_cartesian, generate_points_barycentric, to_cartesian
 from processing.constants import ROUND_DECIMALS
 
 @dataclass(frozen=True)
@@ -26,7 +26,9 @@ class SimulationData:
         vertex_labels = metrics_class.component_names()
         n_vertices = len(vertex_labels)
 
-        vertices_cartesian, points_cartesian, points_barycentric = generate_samples(n_vertices, resolution)
+        points_barycentric = generate_points_barycentric(n_vertices, resolution)
+        vertices_cartesian = generate_vertices_cartesian(n_vertices)
+        points_cartesian = to_cartesian(points_barycentric, vertices_cartesian)
 
         metrics = metrics_class(*points_barycentric.T)
         point_values = metrics.calculate(metric_name)
@@ -41,14 +43,7 @@ class SimulationData:
         )
 
     def round_points_barycentric(self):
-        return SimulationData(
-            self.metrics_class,
-            self.vertices_cartesian.copy(),
-            self.vertex_labels.copy(),
-            self.points_cartesian.copy(),
-            np.round(self.points_barycentric, ROUND_DECIMALS),
-            self.point_values.copy()
-        )
+        return replace(self, points_barycentric=np.round(self.points_barycentric, ROUND_DECIMALS))
 
     def project_cartesian(self, indices, value_agg_func):
         vertices_cartesian_columns = [f'v_c{i}' for i in indices]
@@ -77,13 +72,13 @@ class SimulationData:
         p_df = p_df.round({'point_values': ROUND_DECIMALS})
         p_df['point_values'] += 0.0
 
-        return SimulationData(
-            self.metrics_class,
-            v_df[vertices_cartesian_columns].to_numpy(dtype=np.float64),
-            v_df['vertex_labels'].to_numpy(),
-            p_df[points_cartesian_columns].to_numpy(dtype=np.float64),
-            p_df[points_barycentric_columns].to_numpy(dtype=np.float64),
-            p_df['point_values'].to_numpy(dtype=np.float64)
+        return replace(
+            self,
+            vertices_cartesian=v_df[vertices_cartesian_columns].to_numpy(dtype=np.float64),
+            vertex_labels=v_df['vertex_labels'].to_numpy(),
+            points_cartesian=p_df[points_cartesian_columns].to_numpy(dtype=np.float64),
+            points_barycentric=p_df[points_barycentric_columns].to_numpy(dtype=np.float64),
+            point_values=p_df['point_values'].to_numpy(dtype=np.float64)
         )
 
     def slice_barycentric(self, index_to_value):
@@ -104,13 +99,13 @@ class SimulationData:
         points_barycentric = np.delete(points_barycentric, indices_to_delete, axis=1)
         points_cartesian = to_cartesian(points_barycentric, vertices_cartesian)
 
-        return SimulationData(
-            self.metrics_class,
-            vertices_cartesian,
-            vertex_labels,
-            points_cartesian,
-            points_barycentric,
-            point_values
+        return replace(
+            self,
+            vertices_cartesian=vertices_cartesian,
+            vertex_labels=vertex_labels,
+            points_cartesian=points_cartesian,
+            points_barycentric=points_barycentric,
+            point_values=point_values
         )
 
     def project_radviz(self, indices, value_agg_func):
@@ -142,11 +137,10 @@ class SimulationData:
         df = df.round({'point_values': ROUND_DECIMALS})
         df['point_values'] += 0.0
 
-        return SimulationData(
-            self.metrics_class,
-            vertices_cartesian,
-            self.vertex_labels.copy(),
-            df[points_cartesian_columns].to_numpy(dtype=np.float64),
-            df[points_barycentric_columns].to_numpy(dtype=np.float64),
-            df['point_values'].to_numpy(dtype=np.float64)
+        return replace(
+            self,
+            vertices_cartesian=vertices_cartesian,
+            points_cartesian=df[points_cartesian_columns].to_numpy(dtype=np.float64),
+            points_barycentric=df[points_barycentric_columns].to_numpy(dtype=np.float64),
+            point_values=df['point_values'].to_numpy(dtype=np.float64)
         )

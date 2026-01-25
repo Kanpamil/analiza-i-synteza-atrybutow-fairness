@@ -18,7 +18,7 @@ def cartesian_projection():
     dimensions = st.sidebar.multiselect(
         'Dimensions',
         range(1, 8),
-        max_selections=3,
+        max_selections=REQUIRED_DIMENSIONS,
         key=key,
         on_change=_sort_dimensions,
         args=(key,)

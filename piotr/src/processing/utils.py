@@ -13,7 +13,7 @@ def create_hovers(sim_data):
 
     template = '<br>'.join(f'{l}: {{:.{FORMAT_DECIMALS}f}}' for l in labels) + f'<br>Value: {{:.{FORMAT_DECIMALS}f}}'
 
-    return [template.format(*b, v) for b, v in zip(sim_data.points_barycentric, sim_data.point_values)]
+    return np.array([template.format(*b, v) for b, v in zip(sim_data.points_barycentric, sim_data.point_values)])
 
 def create_offset_vertices(sim_data, factor=0.1):
     centroid = sim_data.vertices_cartesian.mean(axis=0)
