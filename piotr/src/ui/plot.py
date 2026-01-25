@@ -116,8 +116,8 @@ def _create_coordinate_dict(array):
 def _choose_color_scale(sim_data):
     color_rules = [
         (-1.0, 1.0, 'jet'),
-        (0.0, np.inf, 'solar'),
-        (-np.inf, np.inf, 'viridis')
+        (0.0, np.inf, 'viridis'),
+        (-np.inf, np.inf, 'cividis')
     ]
 
     with warnings.catch_warnings():
