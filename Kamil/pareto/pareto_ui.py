@@ -7,26 +7,20 @@ import plotly.express as px
 import plotly.graph_objects as go
 import math
 
-# --- KONFIGURACJA ŚCIEŻEK ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-# --- IMPORTY KLAS ---
 from common.metrics import FairReport, ClassReport
-from FairDataGenerator import FairReportGenerator
+from Kamil.pareto.logic.FairDataGenerator import FairReportGenerator
 from logic.data_processor import DataProcessor
 from logic.pareto_service import ParetoService
 
-# --- HELPERY ---
 def calculate_grid_points(res):
     points_per_group = math.comb(res + 3, 3)
     return points_per_group ** 2
 
-# ==========================================
-# 0. KONFIGURACJA NAZW (SŁOWNIK)
-# ==========================================
 METRIC_PRETTY_NAMES = {
     'accuracy': 'Accuracy',
     'balanced_accuracy': 'Balanced Accuracy',
@@ -55,10 +49,8 @@ METRIC_PRETTY_NAMES = {
 def get_pretty_name(metric_key):
     return METRIC_PRETTY_NAMES.get(metric_key, metric_key)
 
-# --- KONFIGURACJA STRONY ---
 st.set_page_config(page_title="Fairness Pareto Explorer", layout="wide")
 
-# --- CSS: ZMNIEJSZENIE SIDEBARA ---
 st.markdown(
     """
     <style>
@@ -78,15 +70,11 @@ st.markdown(
 
 st.title("Eksplorator Frontu Pareto: Quality vs Fairness")
 
-# Dummy obiekty do pobrania list dostępnych metryk
 _dummy_c = ClassReport(0, 0, 0, 0)
 _dummy_f = FairReport(_dummy_c, _dummy_c)
 QUALITY_METRICS = _dummy_c.available_metrics
 FAIRNESS_METRICS = _dummy_f.available_metrics
 
-# ==========================================
-# 1. SIDEBAR: PARAMETRY SYMULACJI
-# ==========================================
 with st.sidebar:
     st.header("⚙️ Ustawienia")
     
@@ -120,7 +108,6 @@ with st.sidebar:
         res_val = 0 
         jitter_val = 0.0
     else:
-        # Tryb Siatki
         res_val = st.slider(
             "Rozdzielczość (res)", 
             min_value=2, max_value=15, value=8
@@ -151,17 +138,12 @@ with st.sidebar:
         format_func=get_pretty_name
     )
 
-    # --- NOWOŚĆ: Metoda Ograniczeń ---
     st.divider()
     st.header("⚖️ Ograniczenia")
     constraint_val = st.slider(
         f"Min. {get_pretty_name(y_metric)}", 
         min_value=0.0, max_value=1.0, value=0.8, step=0.05
     )
-
-# ==========================================
-# 2. LOGIKA BIZNESOWA
-# ==========================================
 
 gen = FairReportGenerator(
     n_total=n_total, 
@@ -211,7 +193,6 @@ else:
     st.warning("Brak punktów w wybranym zakresie.")
     st.stop()
 
-# 1. Metoda Utopii (Istniejąca)
 df['dist_to_utopia'] = np.sqrt(
     (1 - df[x_metric])**2 + 
     (1 - df[current_y_col])**2
@@ -219,7 +200,6 @@ df['dist_to_utopia'] = np.sqrt(
 best_idx = df['dist_to_utopia'].idxmin()
 best_point = df.loc[best_idx]
 
-# 2. Metoda Knee Point (NOWOŚĆ: Obliczenia)
 try:
     knee_idx = ParetoService.get_knee_point_index(
         df, 
@@ -229,13 +209,8 @@ try:
     )
     knee_point = df.loc[knee_idx]
 except AttributeError:
-    # Zabezpieczenie gdyby ParetoService nie był zaktualizowany
     knee_idx = best_idx
     knee_point = best_point
-
-# ==========================================
-# 3. WIZUALIZACJA (PLOTLY)
-# ==========================================
 
 col1, col2 = st.columns([3, 1])
 
@@ -245,7 +220,6 @@ with col1:
     COLOR_AXIS = "#333333"            
     COLOR_GRID = "#F0F0F0"            
 
-    # --- KONTROLKI ---
     c_check, c_radio = st.columns([1, 2])
     with c_check:
         show_dominated = st.checkbox("Pokaż punkty zdominowane", value=True)
@@ -265,18 +239,15 @@ with col1:
         'Type', 'dist_to_utopia'
     ]
 
-    # --- FILTROWANIE ---
     df_viz = df.copy()
     if not show_dominated:
         df_viz = df_viz[df_viz['is_pareto'] == True]
 
-    # --- SORTOWANIE ---
     if color_mode == "Mapa Ciepła (Dystans)":
         df_viz = df_viz.sort_values(by='dist_to_utopia', ascending=False)
     else:
         df_viz = df_viz.sort_values(by='is_pareto', ascending=True)
 
-    # --- RYSOWANIE PUNKTÓW ---
     if color_mode == "Front Pareto (Klasyczny)":
         fig = px.scatter(
             df_viz, 
@@ -315,7 +286,6 @@ with col1:
             )
         )
 
-    # --- HOVER TEMPLATE ---
     my_hover_template = (
         "<b>%{customdata[8]}</b><br>" + 
         "---<br>" +
@@ -334,7 +304,6 @@ with col1:
     )
     fig.update_traces(hovertemplate=my_hover_template)
 
-    # --- LINIA FRONTU (Zawsze czarna) ---
     pareto_points = df[df['is_pareto']].sort_values(by=x_metric)
     
     fig.add_trace(go.Scattergl(
@@ -347,7 +316,6 @@ with col1:
     ))
     
     if len(pareto_points) >= 2 and color_mode == "Mapa Ciepła (Dystans)":
-        # Sortowanie mamy już wyżej (by=x_metric), więc iloc[0] i iloc[-1] to skrajne punkty X
         p_start = pareto_points.iloc[0]
         p_end = pareto_points.iloc[-1]
         
@@ -361,7 +329,6 @@ with col1:
             hovertext="Linia odniesienia dla Knee Point"
         ))
 
-    # --- PUNKT IDEALNY ---
     fig.add_trace(go.Scattergl(
         x=[1.0],
         y=[1.0],
@@ -377,7 +344,6 @@ with col1:
         hovertext="<b>PUNKT IDEALNY</b><br>(1.0, 1.0)"
     ))
 
-    # --- PUNKT OPTYMALNY (Metoda Utopii) ---
     if color_mode == "Mapa Ciepła (Dystans)":
         fig.add_trace(go.Scattergl(
             x=[best_point[x_metric]],
@@ -399,9 +365,6 @@ with col1:
             )
         ))
 
-    # --- KNEE POINT (NOWOŚĆ: Wizualizacja) ---
-    # Rysujemy fioletowy romb (tylko w trybie mapy ciepła dla czytelności, lub zawsze)
-    # Jeśli knee point jest różny od best point
     if color_mode == "Mapa Ciepła (Dystans)":
         fig.add_trace(go.Scattergl(
             x=[knee_point[x_metric]],
@@ -418,7 +381,6 @@ with col1:
             hovertext="<b>Knee Point</b><br>Punkt Przegięcia"
         ))
 
-    # --- LINIA OGRANICZENIA (NOWOŚĆ) ---
     if color_mode == "Mapa Ciepła (Dystans)":
         fig.add_hline(
             y=constraint_val, 
@@ -426,7 +388,6 @@ with col1:
             line_color="#2CA02C", 
         )
 
-    # --- LAYOUT ---
     fig.update_layout(
         width=1200,   
         height=900,
@@ -459,7 +420,6 @@ with col2:
     st.write(f"**{get_pretty_name(x_metric)}:** {best_point[x_metric]:.4f}")
     st.write(f"**Fairness:** {best_point[current_y_col]:.4f}")
     
-    # Dodanie statystyk Knee Point jeśli jest inny
     if knee_idx != best_idx:
         st.write("---")
         st.markdown("### Knee Point")

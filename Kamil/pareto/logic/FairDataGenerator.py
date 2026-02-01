@@ -3,23 +3,15 @@ import numpy as np
 import os
 import sys
 
-# Ustawienie ścieżek (bez zmian)
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
 from common.metrics import FairReport, ClassReport
-# from common.simplex_geometry import generate_simplex_grid  <-- TO USUWANY
 
-# --- NOWA FUNKCJA (Zastępuje generate_simplex_grid) ---
 def generate_points_barycentric(n_vertices, resolution):
-    """
-    Generuje wagi barycentryczne metodą stars and bars.
-    Zastępuje sztywne pętle for dynamicznym generatorem.
-    """
     points_barycentric = []
-    # Generowanie kombinacji z powtórzeniami
     for placements in itertools.combinations_with_replacement(range(resolution + 1), n_vertices - 1):
         padded = (0,) + placements + (resolution,)
         distances = np.diff(padded)
@@ -43,26 +35,19 @@ class FairReportGenerator:
         self.N_u = cnt_u - self.P_u
 
     def generate_from_simplex(self, res=15, max_samples=None, jitter=0.01):
-        # 1. Generowanie siatki 4D (baza) - UŻYCIE NOWEJ FUNKCJI
-        # Zmieniono z: _, weights_4d = generate_simplex_grid(4, res)
-        # Na:
         weights_4d = generate_points_barycentric(4, res)
         
-        # --- KROK NAPRAWCZY 1: Ręczne dodanie wierzchołków ---
         corners = np.array([
             [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1],
             [0.5, 0, 0.5, 0] 
         ])
         weights_4d = np.vstack([corners, weights_4d])
 
-        # 2. Iloczyn kartezjański 8D
         weights_8d = []
-        # Optymalizacja list comprehension zamiast pętli append
         weights_8d = [np.concatenate([w_p, w_u]) for w_p, w_u in itertools.product(weights_4d, weights_4d)]
         
         pts8 = np.array(weights_8d)
 
-        # 3. Downsampling (bez zmian)
         if max_samples is not None and max_samples < len(pts8):
             idx = np.random.choice(len(pts8), size=max_samples, replace=False)
             pts8 = pts8[idx]
@@ -72,7 +57,6 @@ class FairReportGenerator:
             worst_8d = np.array([0, 0.5, 0, 0.5, 0, 0.5, 0, 0.5])
             pts8 = np.vstack([pts8, perfect_8d, worst_8d])
 
-        # --- KROK NAPRAWCZY 2: Jittering (bez zmian) ---
         if jitter > 0:
             noise = np.random.normal(0, jitter, pts8.shape)
             pts8_noisy = pts8 + noise
@@ -88,7 +72,6 @@ class FairReportGenerator:
 
         return self._apply_scaling_logic(pts8)
 
-    # Reszta metod (generate_random, _apply_scaling_logic) bez zmian...
     def generate_random(self, n_samples=50):
         weights_prot = np.random.dirichlet((1, 1, 1, 1), n_samples)
         weights_unprot = np.random.dirichlet((1, 1, 1, 1), n_samples)
