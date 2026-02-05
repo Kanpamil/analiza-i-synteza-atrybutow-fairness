@@ -1,10 +1,10 @@
 import streamlit as st
 import os
 import pandas as pd
-from data_preprocessor import load_csv_from_path, load_csv_from_bytes, split_and_preprocess, select_features_label, list_columns, get_available_features
-from classificator_runner import run_classifier_experiment, run_classifier_experiment_with_cv, load_and_display_experiment
-from experiment_loader import show_experiment_loader, get_classifier_params_from_session
-from ui_helpers import display_traditional_results, display_cv_results
+from Kamil.classificator_runner.data_preprocessor import load_csv_from_path, load_csv_from_bytes, split_and_preprocess, select_features_label, list_columns, get_available_features
+from Kamil.classificator_runner.classificator_runner import run_classifier_experiment, run_classifier_experiment_with_cv, load_and_display_experiment
+from Kamil.classificator_runner.experiment_loader import show_experiment_loader, get_classifier_params_from_session
+from Kamil.classificator_runner.ui_helpers import display_traditional_results, display_cv_results
 
 st.set_page_config(page_title="Classifier Selector + Runner", layout="wide")
 st.title("Classifier Selector — z trenowaniem i zapisem eksperymentów")
