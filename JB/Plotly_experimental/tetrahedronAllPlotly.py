@@ -2,26 +2,17 @@ import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
 import itertools
-
-# --- NOWE IMPORTY (Wymagane do zapisu ZIP/PNG) ---
 import io
 import zipfile
 import matplotlib
-# Ustawienie backendu 'Agg' zapobiega błędom wątków w Streamlit
+
 matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
-# -------------------------------------------------
 
 # Run with: streamlit run JB/vibecoding/tetrahedronAllPlotly.py
 
-# -------------------------------------------------
-#   Konfiguracja Strony
-# -------------------------------------------------
 st.set_page_config(layout="wide", page_title="Fairness Simplex Visualization")
 
-# -------------------------------------------------
-#   Logika Matematyczna (Numpy)
-# -------------------------------------------------
 A = np.array([0.0, 0.0, 0.0])
 B = np.array([1.0, 0.0, 1.0])
 C = np.array([1.0, 1.0, 0.0])
@@ -87,7 +78,6 @@ def get_barycentric_for_slice(x, y, z):
     w4 = w_sum - x
     return w1, w2, w3, w4
 
-# --- Helper for Performance Metrics ---
 def get_performance_metric(tp, fp, tn, fn, metric_name):
     p = tp + fn
     n = fp + tn
@@ -116,13 +106,9 @@ def get_performance_metric(tp, fp, tn, fn, metric_name):
         
     return np.zeros_like(tp, dtype=float)
 
-# -------------------------------------------------
-#   Główny Kalkulator Metryk
-# -------------------------------------------------
 def calculate_metric(inputs, mode):
     def get(k): return inputs[k]
     
-    # >>>> FAIRNESS METRICS <<<<
     if 'Equal Opportunity' in mode or 'Predictive Equality' in mode or \
        'Equalized Odds' in mode or 'Demographic Parity' in mode or \
        'Disparate Impact' in mode or 'Predictive Parity Diff' in mode:
@@ -158,7 +144,6 @@ def calculate_metric(inputs, mode):
         elif mode == 'Disparate Impact (Ratio)': return safe_div(pr_p, pr_u)
         elif mode == 'Predictive Parity Diff (Precision)': return ppv_p - ppv_u
 
-    # >>>> PERFORMANCE METRICS <<<<
     else:
         try:
             metric_name, scope_part = mode.rsplit(' (', 1)
@@ -177,10 +162,6 @@ def calculate_metric(inputs, mode):
                                           get('FN_p')+get('FN_u'), metric_name)
 
     return np.zeros_like(get('TP_p'), dtype=float)
-
-# -------------------------------------------------
-#   Interfejs Streamlit
-# -------------------------------------------------
 
 with st.sidebar:
     st.header("Zmienne Macierzy Pomyłek")
@@ -210,8 +191,6 @@ with st.sidebar:
         st.error("Zaznaczono więcej niż 4 zmienne! Odznacz nadmiarowe.")
         st.stop()
 
-    # --- SEKCJA 1: Ustawienia Przekroju (RESTORED) ---
-    # Te zmienne muszą być zainicjalizowane przed głównym panelem
     slice_pos = 0.5
     slice_axis = 'Z' 
     
@@ -227,14 +206,12 @@ with st.sidebar:
         slice_options = [label_z, label_y, label_x]
         slice_axis_str = st.radio("Oś Cięcia", slice_options)
         
-        # Mapowanie stringa z powrotem na kod osi
         if slice_axis_str == label_z: slice_axis = 'Z'
         elif slice_axis_str == label_y: slice_axis = 'Y'
         else: slice_axis = 'X'
             
         slice_pos = st.slider("Pozycja Płaszczyzny", 0.0, 1.0, 0.5)
 
-    # --- SEKCJA 2: Ustawienia Wizualizacji ---
     st.markdown("---")
     st.header("Ustawienia Wizualizacji")
     
@@ -284,10 +261,6 @@ with st.sidebar:
     res_3d = st.slider("Rozdzielczość Punktów 3D", 5, 100, 40)
     alpha_val = st.slider("Przeźroczystość punktów (Alpha)", 0.0, 1.0, 0.5, step=0.05)
 
-# -------------------------------------------------
-#   Główny Panel
-# -------------------------------------------------
-
 bary_coords, bary_weights = generate_simplex_grid(n_dim, res_3d)
 
 metric_inputs_3d = {}
@@ -305,8 +278,6 @@ for key in VAR_KEYS:
 if n_dim > 0:
     vals_3d = calculate_metric(metric_inputs_3d, metric_mode)
     
-    # --- FIX: Obsługa skalara (TypeError: has no len) ---
-    # Jeśli wynik to pojedyncza liczba (skalar), rozciągnij go na wszystkie punkty
     if np.ndim(vals_3d) == 0:
         if bary_coords.shape[0] > 0:
             vals_3d = np.full(bary_coords.shape[0], vals_3d)
@@ -317,7 +288,6 @@ if n_dim > 0:
 else:
     vals_3d = np.array([])
 
-# --- Zakresy Kolorów ---
 cmin, cmax = 0.0, 1.0
 colorscale = 'Jet'
 
@@ -338,8 +308,7 @@ else:
 if 'Ratio' not in metric_mode:
     vals_3d_plot = vals_3d
 
-if "Fairness" in metric_type: # Używamy metric_type bo metric_mode jest różne
-    # Możemy spróbować wyciągnąć info
+if "Fairness" in metric_type:
     if 'Diff' in metric_mode: suffix = "[Diff]"
     elif 'Ratio' in metric_mode: suffix = "[Ratio]"
     else: suffix = ""
@@ -347,7 +316,6 @@ if "Fairness" in metric_type: # Używamy metric_type bo metric_mode jest różne
 else:
     legend_title = f"{metric_mode}"
 
-# --- WYKRES 3D ---
 fig_3d = go.Figure()
 
 if n_dim > 0 and len(vals_3d) > 0:
@@ -402,11 +370,9 @@ if n_dim > 0:
             showlegend=False
         ))
 
-# --- PŁASZCZYZNA 2D i SURFACE ---
 fig_2d = None
 stats_title = ""
 
-# Definicja pustych zmiennych, żeby nie było błędu przy n_dim < 4
 surf_x, surf_y, surf_z = [], [], []
 
 if n_dim == 4:
@@ -437,7 +403,6 @@ if n_dim == 4:
     margin = 0.1 
     mask_inside_s = (w1s>=-margin) & (w2s>=-margin) & (w3s>=-margin) & (w4s>=-margin)
     
-    # Dane dla Surface 3D
     surf_x = np.where(mask_inside_s, X_s, np.nan)
     surf_y = np.where(mask_inside_s, Y_s, np.nan)
     surf_z = np.where(mask_inside_s, Z_s, np.nan)
@@ -454,7 +419,6 @@ if n_dim == 4:
     
     vals_2d = calculate_metric(metric_inputs_2d, metric_mode)
     
-    # FIX: Obsługa skalara dla 2D
     if np.ndim(vals_2d) == 0:
         vals_2d = np.full((N_HEATMAP, N_HEATMAP), vals_2d)
         
@@ -481,10 +445,10 @@ if n_dim == 4:
         colorscale=colorscale,
         zmin=cmin,
         zmax=cmax,
-        connectgaps=False, # Ważne: nie rysuje linii poza trójkątem
+        connectgaps=False,
         contours=dict(
-            coloring='heatmap', # Zachowuje wypełnienie kolorami (gradient)
-            showlabels=True,    # Dodaje napisy na liniach (np. 0.5, 0.6)
+            coloring='heatmap',
+            showlabels=True,
             labelfont=dict(
                 size=12,
                 color='white',
@@ -503,7 +467,6 @@ if n_dim == 4:
         )
     )
 
-# Dodanie śladu Surface do 3D
 if n_dim == 4:
     fig_3d.add_trace(go.Surface(
         x=surf_x, y=surf_y, z=surf_z,
@@ -513,7 +476,6 @@ if n_dim == 4:
 else:
     fig_3d.add_trace(go.Scatter3d(x=[], y=[], z=[], mode='markers', showlegend=False))
 
-# --- Layout 3D ---
 fig_3d.update_layout(
     title=f"Simplex Dimension: {max(0, n_dim-1)} ({n_dim} Zmiennych)",
     scene=dict(
@@ -541,9 +503,6 @@ with col_2d:
     else:
         st.empty()
 
-
-# --- SEKCJA GENEROWANIA ZIP z PNG (DODANA) ---
-
 with st.sidebar:
     st.markdown("---")
     st.header("📦 Eksport serii do ZIP")
@@ -563,7 +522,6 @@ with st.sidebar:
                 val_range = np.linspace(start_val, end_val, steps)
                 combinations = list(itertools.product(val_range, repeat=len(selected_fixed)))
                 
-                # Bufor ZIP w pamięci
                 zip_buffer = io.BytesIO()
                 
                 with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
@@ -579,8 +537,6 @@ with st.sidebar:
                             title_parts.append(f"{var_name}={int(combo[i])}")
                             filename_parts.append(f"{var_name}_{int(combo[i])}")
                         
-                        # Przeliczenie metryki dla aktualnej iteracji
-                        # Korzystamy ze zmiennych globalnych X_h, Y_h, Z_h zdefiniowanych w bloku n_dim == 4
                         w1h, w2h, w3h, w4h = get_barycentric_for_slice(X_h, Y_h, Z_h)
                         
                         metric_inputs_iter = local_inputs_2d.copy()
@@ -595,10 +551,8 @@ with st.sidebar:
                         
                         iter_vals_masked = np.where(mask_inside_h, iter_vals, np.nan)
                         
-                        # Renderowanie PNG (Kwadratowe proporcje)
                         fig_plt, ax = plt.subplots(figsize=(6, 6))
                         
-                        # Ustawienie aspect ratio na 'equal' zapobiega rozciąganiu
                         ax.set_aspect('equal', 'box')
                         
                         cmap_plt = 'jet'
@@ -613,13 +567,10 @@ with st.sidebar:
                         ax.set_xlabel(lbl_x)
                         ax.set_ylabel(lbl_y)
                         
-                        # Zapis do bufora obrazu PNG
                         img_buffer = io.BytesIO()
-                        # bbox_inches='tight' usuwa zbędny biały margines
                         plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
                         plt.close(fig_plt)
                         
-                        # Dodanie do ZIP
                         file_name = f"plot_{'_'.join(filename_parts)}.png"
                         zip_file.writestr(file_name, img_buffer.getvalue())
                         

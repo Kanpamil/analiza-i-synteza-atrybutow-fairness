@@ -6,9 +6,6 @@ import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 import datetime
 
-# -------------------------------------------------
-#   Definicje wierzchołków
-# -------------------------------------------------
 TP_p = np.array([0.0, 0.0, 0.0])
 FN_p = np.array([1.0, 0.0, 1.0])
 TP_u = np.array([1.0, 1.0, 0.0])
@@ -17,9 +14,6 @@ FN_u = np.array([0.0, 1.0, 1.0])
 vertices = [TP_p, FN_p, TP_u, FN_u]
 labels = ["TP_p", "FN_p", "TP_u", "FN_u"]
 
-# -------------------------------------------------
-#   MAPY KOLORÓW
-# -------------------------------------------------
 cmap_full_jet = plt.cm.jet.copy()
 cmap_full_jet.set_bad(color='white')
 
@@ -30,9 +24,6 @@ cmap_green_red.set_bad(color='white')
 cmap_ratio_custom = plt.cm.viridis.copy()
 cmap_ratio_custom.set_bad(color='white')
 
-# -------------------------------------------------
-#   Funkcje obliczeniowe
-# -------------------------------------------------
 def calculate_metric(tpp, fnp, tpu, fnu, mode, use_abs=False):
     p_prot = tpp + fnp
     p_unprot = tpu + fnu
@@ -74,7 +65,6 @@ def get_barycentric(x, y, z):
     w_fnu = w_sum - x
     return w_tpp, w_fnp, w_tpu, w_fnu
 
-# --- GENERATOR PUNKTÓW ---
 def generate_point_cloud(N, surface_only=False):
     coords = []
     weights = []
@@ -92,9 +82,6 @@ def generate_point_cloud(N, surface_only=False):
                 weights.append(w)
     return np.array(coords), np.array(weights).T
 
-# -------------------------------------------------
-#   Inicjalizacja Stanu
-# -------------------------------------------------
 current_N = 12
 pts_3d_coords, bary_weights_array = generate_point_cloud(current_N, surface_only=False)
 
@@ -104,9 +91,6 @@ contour_labels = []
 cbar_2d = None
 sc_main = None 
 
-# -------------------------------------------------
-#   Konfiguracja Okna Głównego
-# -------------------------------------------------
 fig = plt.figure(figsize=(15, 9))
 plt.subplots_adjust(bottom=0.25, wspace=0.3, left=0.05, right=0.95)
 
@@ -118,7 +102,6 @@ current_pts_valid = None
 current_pts_nan = None
 current_is_transparent = False
 
-# --- WYKRES 3D ---
 ax3d = fig.add_subplot(121, projection='3d')
 ax3d.view_init(elev=-68, azim=-142, roll=56)
 ax3d.set_title("Widok 3D (Przestrzeń Pozytywów)", fontsize=12)
@@ -141,7 +124,6 @@ def draw_tetrahedron_edges(ax):
 draw_tetrahedron_edges(ax3d)
 sc_main = ax3d.scatter([], [], [], s=15)
 
-# --- WYKRES 2D ---
 ax2d = fig.add_subplot(122)
 ax2d.set_title("Przekrój 2D", fontsize=12)
 
@@ -155,9 +137,6 @@ cbar_2d = fig.colorbar(img, ax=ax2d, shrink=0.7)
 
 stats_text = ax2d.text(0.5, -0.15, "", transform=ax2d.transAxes, ha='center', va='top', fontsize=11, fontweight='bold', color='#333333')
 
-# -------------------------------------------------
-#   Logika Parametrów
-# -------------------------------------------------
 def get_visualization_params():
     metric_mode = radio_metric.value_selected
     is_abs = check_abs.get_status()[0]
@@ -201,16 +180,13 @@ def get_visualization_params():
         norm = mcolors.Normalize(vmin=0.0, vmax=1.0)
         levels = np.linspace(0.1, 0.9, 9)
         
-    else: # Global Recall
+    else:
         cmap = cmap_green_red
         norm = mcolors.Normalize(vmin=0.0, vmax=1.0)
         levels = np.linspace(0.1, 0.9, 9)
         
     return metric_mode, norm, levels, cmap, log_exp, is_abs
 
-# -------------------------------------------------
-#   Główna Funkcja Update
-# -------------------------------------------------
 def update(val=None):
     global surf_plot, sc_main, contours, contour_labels, cbar_2d
     global current_norm, current_levels, current_vals_valid, current_pts_valid, current_pts_nan, current_is_transparent, current_cmap
@@ -221,7 +197,6 @@ def update(val=None):
     metric_mode = radio_metric.value_selected
     log_label = check_log.labels[0]
     
-    # Logika UI dla Log Scale
     if metric_mode == 'Eq. Opp. (Ratio)':
         log_label.set_color('black')
         text_log.label.set_color('black')
@@ -242,7 +217,6 @@ def update(val=None):
     
     show_plane = check_plane.get_status()[0]
     
-    # 1. Update 3D Points
     tpp, fnp, tpu, fnu = bary_weights_array
     vals = calculate_metric(tpp, fnp, tpu, fnu, metric_mode, use_abs=is_abs)
     vals = np.nan_to_num(vals, nan=np.nan, posinf=np.nan, neginf=np.nan)
@@ -258,7 +232,6 @@ def update(val=None):
     current_vals_valid = vals_valid
     current_pts_nan = pts_nan
     
-    # --- Łączenie punktów ---
     mapper = cm.ScalarMappable(norm=norm, cmap=cmap)
     
     if len(pts_valid) > 0:
@@ -300,7 +273,6 @@ def update(val=None):
     sm_3d.set_array([]) 
     fig.colorbar(sm_3d, cax=ax_cbar_3d)
 
-    # 2. Update 2D Slice
     if 'Z' in axis_mode: 
         X_grid, Y_grid = U, V
         Z_grid = np.full_like(U, pos)
@@ -357,7 +329,6 @@ def update(val=None):
     ax2d.set_xlabel(xlabel, fontsize=10)
     ax2d.set_ylabel(ylabel, fontsize=10)
     
-    # 3. Update Plane
     if surf_plot is not None: 
         try: surf_plot.remove()
         except: pass 
@@ -393,9 +364,6 @@ def update_roll(val):
         ax3d.view_init(elev=ax3d.elev, azim=ax3d.azim)
     fig.canvas.draw_idle()
 
-# -------------------------------------------------
-#   FUNKCJE EKSPORTU (ZOPTYMALIZOWANE ROZMIAROWO)
-# -------------------------------------------------
 def generate_filename(prefix, extension):
     timestamp = datetime.datetime.now().strftime("%H%M%S")
     return f"{prefix}_{timestamp}.{extension}"
@@ -403,10 +371,8 @@ def generate_filename(prefix, extension):
 def export_3d(file_format):
     print(f"Rozpoczynam zapis wykresu 3D ({file_format})...")
     
-    # 1. Niższe DPI - 150 wystarczy do podglądu, a drastycznie zmniejsza plik
     dpi_val = 150
-    
-    # 2. Mniejszy rozmiar fizyczny figury (mniej pikseli do wyrenderowania)
+
     export_fig = plt.figure(figsize=(6, 5)) 
     
     export_ax = export_fig.add_axes([0.0, 0.0, 0.90, 1.0], projection='3d')
@@ -427,7 +393,6 @@ def export_3d(file_format):
     except AttributeError:
         pass 
 
-    # Krawędzie wektorowe (będą ostre)
     draw_tetrahedron_edges(export_ax)
     
     metric_mode, norm, _, cmap, _, _ = get_visualization_params()
@@ -454,8 +419,6 @@ def export_3d(file_format):
         all_pts_exp = np.vstack(pts_to_export)
         all_colors_exp = np.vstack(colors_to_export)
         
-        # 3. rasterized=True - to klucz do małych PDFów.
-        # Punkty są zamieniane na bitmapę wewnątrz PDF, a nie trzymane jako wektory.
         export_ax.scatter(all_pts_exp[:,0], all_pts_exp[:,1], all_pts_exp[:,2], 
                           s=20, c=all_colors_exp, depthshade=True,
                           rasterized=True) 
@@ -480,7 +443,6 @@ def export_3d(file_format):
         Y_surf = np.where(mask_inside, Y_grid, np.nan)
         Z_surf = np.where(mask_inside, Z_grid, np.nan)
         
-        # Płaszczyzna też rasteryzowana
         export_ax.plot_surface(X_surf, Y_surf, Z_surf, color='red', alpha=1.0, 
                                rstride=5, cstride=5, shade=False,
                                rasterized=True)
@@ -550,15 +512,11 @@ def export_2d(file_format):
     plt.close(export_fig)
     print(f"Zapisano (Lekki plik): {fname}")
 
-# Wrapper functions for buttons
 def save_3d_pdf(event): export_3d('pdf')
 def save_3d_png(event): export_3d('png')
 def save_2d_pdf(event): export_2d('pdf')
 def save_2d_png(event): export_2d('png')
 
-# -------------------------------------------------
-#   Widgety
-# -------------------------------------------------
 bg_color = '#f0f0f0'
 
 ax_radio_axis = plt.axes([0.05, 0.02, 0.12, 0.18], facecolor=bg_color)
@@ -572,7 +530,6 @@ ax_radio_metric.set_title("Metryka", fontsize=9)
 ax_controls = plt.axes([0.31, 0.02, 0.16, 0.18], facecolor=bg_color)
 ax_controls.axis('off')
 
-# NOWY CHECKBOX - ABS VALUE
 ax_check_abs = plt.axes([0.31, 0.205, 0.12, 0.05], frameon=False)
 check_abs = CheckButtons(ax_check_abs, ['Abs Value'], [False])
 
@@ -604,7 +561,6 @@ ax_slider_roll = plt.axes([0.50, 0.07, 0.43, 0.03])
 slider_roll = Slider(ax_slider_roll, 'Roll (3D) ', -180, 180, valinit=56, color='orange')
 slider_roll.label.set_size(9)
 
-# --- 4 Buttons for Save ---
 ax_btn_3d_pdf = plt.axes([0.66, 0.015, 0.06, 0.04])
 btn_3d_pdf = Button(ax_btn_3d_pdf, '3D PDF', color='lightblue', hovercolor='0.9')
 
@@ -617,7 +573,6 @@ btn_2d_pdf = Button(ax_btn_2d_pdf, '2D PDF', color='lightgreen', hovercolor='0.9
 ax_btn_2d_png = plt.axes([0.89, 0.015, 0.06, 0.04])
 btn_2d_png = Button(ax_btn_2d_png, '2D PNG', color='lightgreen', hovercolor='0.9')
 
-# Callbacks
 radio_axis.on_clicked(update)
 radio_metric.on_clicked(update)
 slider_pos.on_changed(update)
